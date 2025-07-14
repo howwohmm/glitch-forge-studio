@@ -1,9 +1,9 @@
-
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import { Upload, Download, Settings, Grid3X3, Zap, Palette } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import WebGLCanvas from "@/components/WebGLCanvas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,18 +11,12 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { shaderEffects, getShaderEffect, getDefaultUniforms, ShaderEffect } from "@/utils/shaderManager";
 
 interface UploadedFile {
   file: File;
   preview: string;
   type: 'image' | 'video';
-}
-
-interface EffectPreset {
-  id: string;
-  name: string;
-  category: string;
-  preview?: string;
 }
 
 const effectCategories = [
@@ -34,21 +28,11 @@ const effectCategories = [
   { id: 'special', name: 'Special Effects', icon: Zap },
 ];
 
-const effectPresets: EffectPreset[] = [
-  { id: 'floyd-steinberg', name: 'Floyd-Steinberg', category: 'error-diffusion' },
-  { id: 'jarvis-judice', name: 'Jarvis-Judice-Ninke', category: 'error-diffusion' },
-  { id: 'bayer-8x8', name: 'Bayer 8x8', category: 'bitmap' },
-  { id: 'bayer-4x4', name: 'Bayer 4x4', category: 'bitmap' },
-  { id: 'data-mosh', name: 'Data Mosh', category: 'glitch' },
-  { id: 'rgb-shift', name: 'RGB Shift', category: 'glitch' },
-  { id: 'scanline-drift', name: 'Scanline Drift', category: 'pattern' },
-  { id: 'halftone-pop', name: 'Halftone Pop', category: 'modulation' },
-];
-
 export default function Editor() {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [activeCategory, setActiveCategory] = useState('error-diffusion');
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState('glitch');
+  const [activeShader, setActiveShader] = useState<ShaderEffect | null>(null);
+  const [uniforms, setUniforms] = useState<Record<string, any>>({});
   const [intensity, setIntensity] = useState([50]);
   const [contrast, setContrast] = useState([50]);
   const [scale, setScale] = useState([50]);
@@ -60,7 +44,6 @@ export default function Editor() {
     const file = acceptedFiles[0];
     if (!file) return;
 
-    // Check file size (30MB limit)
     if (file.size > 30 * 1024 * 1024) {
       toast({
         title: "File too large",
@@ -70,7 +53,6 @@ export default function Editor() {
       return;
     }
 
-    // Check file type
     const supportedTypes = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/gif', 'video/mp4', 'video/webm'];
     if (!supportedTypes.includes(file.type)) {
       toast({
@@ -103,23 +85,34 @@ export default function Editor() {
     multiple: false
   });
 
-  const applyPreset = (presetId: string) => {
-    setSelectedPreset(presetId);
+  const applyShader = (effectId: string) => {
+    const effect = getShaderEffect(effectId);
+    if (!effect) return;
+
+    setActiveShader(effect);
+    setUniforms(getDefaultUniforms(effect));
+    
     toast({
-      title: "Preset applied",
-      description: `Applied ${effectPresets.find(p => p.id === presetId)?.name} effect.`,
+      title: "Shader applied",
+      description: `Applied ${effect.name} effect.`,
     });
   };
 
+  const updateUniform = (uniformName: string, value: any) => {
+    setUniforms(prev => ({
+      ...prev,
+      [uniformName]: value
+    }));
+  };
+
   const exportFile = () => {
-    if (!uploadedFile) return;
+    if (!uploadedFile && !activeShader) return;
     
     toast({
       title: "Export started",
       description: "Processing your file with the selected effects...",
     });
     
-    // Export logic would be implemented here
     setTimeout(() => {
       toast({
         title: "Export complete",
@@ -128,7 +121,7 @@ export default function Editor() {
     }, 2000);
   };
 
-  const filteredPresets = effectPresets.filter(preset => preset.category === activeCategory);
+  const filteredEffects = shaderEffects.filter(effect => effect.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,7 +141,7 @@ export default function Editor() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!uploadedFile ? (
+                  {!uploadedFile && !activeShader ? (
                     <div
                       {...getRootProps()}
                       className={`upload-area ${isDragActive ? 'dragover' : ''}`}
@@ -167,35 +160,51 @@ export default function Editor() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="relative">
-                        {uploadedFile.type === 'image' ? (
-                          <img
-                            src={uploadedFile.preview}
-                            alt="Preview"
-                            className="w-full h-96 object-contain rounded-lg bg-muted"
-                          />
-                        ) : (
-                          <video
-                            src={uploadedFile.preview}
-                            className="w-full h-96 object-contain rounded-lg bg-muted"
-                            controls
+                      <div className="flex justify-center">
+                        {activeShader && (
+                          <WebGLCanvas
+                            shader={activeShader.shader}
+                            uniforms={uniforms}
+                            imageData={uploadedFile?.preview}
+                            width={512}
+                            height={512}
                           />
                         )}
+                        {!activeShader && uploadedFile && (
+                          uploadedFile.type === 'image' ? (
+                            <img
+                              src={uploadedFile.preview}
+                              alt="Preview"
+                              className="w-full h-96 object-contain rounded-lg bg-muted"
+                            />
+                          ) : (
+                            <video
+                              src={uploadedFile.preview}
+                              className="w-full h-96 object-contain rounded-lg bg-muted"
+                              controls
+                            />
+                          )
+                        )}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{uploadedFile.file.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {(uploadedFile.file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
+                      {uploadedFile && (
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{uploadedFile.file.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(uploadedFile.file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setUploadedFile(null);
+                              setActiveShader(null);
+                            }}
+                          >
+                            Remove
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          onClick={() => setUploadedFile(null)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -228,18 +237,18 @@ export default function Editor() {
                     {effectCategories.map((category) => (
                       <TabsContent key={category.id} value={category.id}>
                         <div className="space-y-3">
-                          {filteredPresets.map((preset) => (
+                          {filteredEffects.map((effect) => (
                             <motion.div
-                              key={preset.id}
+                              key={effect.id}
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              className={`effect-preset ${selectedPreset === preset.id ? 'border-ohmedit-red' : ''}`}
-                              onClick={() => applyPreset(preset.id)}
+                              className={`effect-preset ${activeShader?.id === effect.id ? 'border-ohmedit-red' : ''}`}
+                              onClick={() => applyShader(effect.id)}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-gradient-to-br from-ohmedit-red/20 to-muted/20 rounded"></div>
                                 <div>
-                                  <h4 className="font-medium">{preset.name}</h4>
+                                  <h4 className="font-medium">{effect.name}</h4>
                                   <p className="text-sm text-muted-foreground">{category.name}</p>
                                 </div>
                               </div>
@@ -251,6 +260,66 @@ export default function Editor() {
                   </Tabs>
                 </CardContent>
               </Card>
+
+              {/* Dynamic Shader Parameters */}
+              {activeShader && activeShader.uniforms.length > 0 && (
+                <Card className="glass">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5" />
+                      Shader Parameters
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {activeShader.uniforms.map((uniform) => (
+                      <div key={uniform.name}>
+                        <Label>{uniform.label}</Label>
+                        {uniform.type === 'float' && (
+                          <>
+                            <Slider
+                              value={[uniforms[uniform.name] || uniform.default]}
+                              onValueChange={(value) => updateUniform(uniform.name, value[0])}
+                              min={uniform.min || 0}
+                              max={uniform.max || 1}
+                              step={0.01}
+                              className="mt-2"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              {(uniforms[uniform.name] || uniform.default).toFixed(2)}
+                            </span>
+                          </>
+                        )}
+                        {uniform.type === 'vec2' && (
+                          <div className="space-y-2">
+                            <div>
+                              <Label className="text-xs">X</Label>
+                              <Slider
+                                value={[uniforms[uniform.name]?.[0] || uniform.default[0]]}
+                                onValueChange={(value) => updateUniform(uniform.name, [value[0], uniforms[uniform.name]?.[1] || uniform.default[1]])}
+                                min={uniform.min || -1}
+                                max={uniform.max || 1}
+                                step={0.001}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Y</Label>
+                              <Slider
+                                value={[uniforms[uniform.name]?.[1] || uniform.default[1]]}
+                                onValueChange={(value) => updateUniform(uniform.name, [uniforms[uniform.name]?.[0] || uniform.default[0], value[0]])}
+                                min={uniform.min || -1}
+                                max={uniform.max || 1}
+                                step={0.001}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Parameters */}
               <Card className="glass">
@@ -361,7 +430,7 @@ export default function Editor() {
 
                   <Button
                     onClick={exportFile}
-                    disabled={!uploadedFile}
+                    disabled={!uploadedFile && !activeShader}
                     className="w-full btn-primary"
                   >
                     <Download className="h-4 w-4 mr-2" />
