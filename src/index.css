@@ -141,7 +141,7 @@
   }
 
   .effect-preset {
-    @apply glass-hover rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-102;
+    @apply glass-hover rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105;
   }
 
   /* Custom scrollbar */
