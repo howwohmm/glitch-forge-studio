@@ -14,5 +14,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  assetsInclude: ['**/*.glsl', '**/*.frag', '**/*.vert'],
+  assetsInclude: ['**/*.glsl', '**/*.frag', '**/*.vert', '**/*.glslp'],
+  publicDir: 'public',
+  build: {
+    rollupOptions: {
+      external: [],
+    },
+  },
 });

@@ -1,95 +1,59 @@
 
-import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Sun, Moon, User, LogOut } from "lucide-react";
-import { useTheme } from "@/components/ThemeProvider";
-import { useAuth } from "@/components/AuthProvider";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
+import { Palette, Home, Edit, Users, Sparkles } from 'lucide-react';
 
-export default function Navigation() {
-  const { theme, setTheme } = useTheme();
-  const { user, signOut } = useAuth();
+const Navigation: React.FC = () => {
   const location = useLocation();
 
   const navItems = [
-    { name: "Community", href: "/community" },
-    { name: "About", href: "/about" },
+    { href: '/home', label: 'Home', icon: Home },
+    { href: '/shaders', label: 'Working Shaders', icon: Sparkles },
+    { href: '/editor', label: 'Editor', icon: Edit },
+    { href: '/community', label: 'Community', icon: Users },
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Link to="/" className="text-brand text-xl font-bold">
-            <span className="text-gradient">ohmedit</span>
-          </Link>
-        </motion.div>
-
-        {/* Navigation Links */}
-        <div className="hidden md:flex items-center space-x-8">
-          {navItems.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={`relative text-sm font-medium transition-colors duration-200 ${
-                location.pathname === item.href
-                  ? "text-ohmedit-red"
-                  : "text-foreground/70 hover:text-foreground"
-              }`}
-            >
-              {item.name}
-              {location.pathname === item.href && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute -bottom-1 left-0 right-0 h-0.5 bg-ohmedit-red"
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
+    <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center space-x-6">
+            {/* Logo */}
+            <Link to="/" className="flex items-center space-x-2">
+              <Palette className="h-6 w-6 text-primary" />
+              <span className="font-bold text-xl">Glitch Forge Studio</span>
             </Link>
-          ))}
-        </div>
 
-        {/* Right side actions */}
-        <div className="flex items-center space-x-4">
-          {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="h-9 w-9 p-0"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
-
-          {/* Auth */}
-          {user ? (
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                <User className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={signOut} className="h-9 w-9 p-0">
-                <LogOut className="h-4 w-4" />
-              </Button>
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center space-x-1">
+              {navItems.map(({ href, label, icon: Icon }) => (
+                <Link key={href} to={href}>
+                  <Button
+                    variant={location.pathname === href ? 'default' : 'ghost'}
+                    size="sm"
+                    className="flex items-center space-x-2"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
+                  </Button>
+                </Link>
+              ))}
             </div>
-          ) : (
+          </div>
+
+          <div className="flex items-center space-x-2">
             <Link to="/auth">
-              <Button variant="ghost" size="sm">
-                Login
+              <Button variant="outline" size="sm">
+                Sign In
               </Button>
             </Link>
-          )}
+          </div>
         </div>
       </div>
     </nav>
   );
-}
+};
+
+export default Navigation;
